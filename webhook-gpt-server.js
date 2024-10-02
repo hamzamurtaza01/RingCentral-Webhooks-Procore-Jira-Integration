@@ -134,6 +134,126 @@ async function delete_subscription(subscriptionId) {
     }
 }
 
+/* ============== RING CENTRAL APIs & WEBHOOK ================== */
+
+// Send SMS
+app.post("/send-sms", async (req, res) => {
+    try {
+        const { toNumber, message } = req.body
+        const resp = await platform.post(
+            "/restapi/v1.0/account/~/extension/~/sms",
+            {
+                from: { phoneNumber: process.env.RINGCENTRAL_USERNAME },
+                to: [{ phoneNumber: toNumber }],
+                text: message
+            }
+        )
+        res.json(await resp.json())
+    } catch (error) {
+        res.send("SMS failed: " + error.message)
+    }
+})
+
+// Place a voice call
+app.post("/make-call", async (req, res) => {
+    try {
+        const { toNumber } = req.body
+        const resp = await platform.post(
+            "/restapi/v1.0/account/~/extension/~/ringout",
+            {
+                from: { phoneNumber: process.env.RINGCENTRAL_USERNAME },
+                to: { phoneNumber: toNumber },
+                playPrompt: true
+            }
+        )
+
+        const callInfo = await resp.json()
+        console.log("Call info >>>:", callInfo)
+        const sessionId = callInfo.id // Capture session ID
+        console.log("Call initiated. Session ID:", sessionId)
+
+        res.json(callInfo)
+    } catch (error) {
+        res.send("Call failed: " + error.message)
+    }
+})
+
+// End a voice call
+app.post("/end-call", async (req, res) => {
+    try {
+        const { sessionId } = req.body // Make sure to pass sessionId when ending the call
+        const endpoint = `/restapi/v1.0/account/~/telephony/sessions/${sessionId}`
+
+        const response = await platform.post(endpoint, {
+            action: "cancel"
+        })
+
+        res.json(await response.json())
+        console.log(`Call with session ID ${sessionId} has been ended.`)
+    } catch (error) {
+        console.error("Failed to end the call:", error)
+        res.status(500).send("Error ending the call: " + error.message)
+    }
+})
+
+// Webhook handler
+app.post("/webhook", async (req, res) => {
+    const validationToken = req.headers["validation-token"]
+
+    // Check if the request contains a validation token
+    if (validationToken) {
+        console.log("Validation Token received:", validationToken)
+        // Respond with the validation token
+        res.setHeader("Validation-Token", validationToken)
+        res.status(200).send("Validation token returned")
+    } else {
+        // Process the actual event (after validation is completed)
+        console.log("Webhook event received:", req.body)
+        console.log("\n PARTIES >>:", req.body?.body?.parties)
+        res.status(200).send("Event received")
+    }
+})
+
+/* ============== WEB SOCKETS ================== */
+
+// WebSocket server logic
+wss.on("connection", (ws) => {
+    console.log("New WebSocket client connected")
+
+    // Send a welcome message to the WebSocket client
+    ws.send(JSON.stringify({ message: "Welcome to the WebSocket server" }))
+
+    // Handle messages from the client
+    ws.on("message", (message) => {
+        console.log("Received message from client:", message)
+
+        // Broadcast the message to all connected clients
+        wss.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify({ message: `Echo: ${message}` }))
+            }
+        })
+    })
+
+    // Handle disconnection
+    ws.on("close", () => {
+        console.log("Client disconnected")
+    })
+})
+
+// WebSocket testing route (you can use Postman with WebSocket support to test this)
+app.get("/test-websocket", (req, res) => {
+    // Send a message to all WebSocket clients for testing
+    wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({ message: "This is a test message" }))
+        }
+    })
+    res.send("Test message sent to WebSocket clients.")
+})
+
+/* ============== PRO SOFTWARE ================== */
+
 server.listen(PORT, async () => {
     console.log(`Server running at http://localhost:${PORT}`)
 })
