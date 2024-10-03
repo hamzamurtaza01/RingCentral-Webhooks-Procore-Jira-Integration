@@ -4,6 +4,9 @@ const bodyParser = require("body-parser")
 const RingCentral = require("@ringcentral/sdk").SDK
 const WebSocket = require("ws")
 const http = require("http")
+const axios = require("axios")
+const crypto = require("crypto")
+const state = crypto.randomBytes(16).toString("hex")
 
 const app = express()
 app.use(bodyParser.json())
@@ -253,6 +256,75 @@ app.get("/test-websocket", (req, res) => {
 })
 
 /* ============== PRO SOFTWARE ================== */
+
+// Step 1: Redirect User to ProCore OAuth Login
+app.get("/procore/login", (req, res) => {
+    console.log("unique state >>>", state)
+    const procoreAuthUrl = `https://login-sandbox.procore.com/oauth/authorize?client_id=${process.env.PROCORE_CLIENT_ID}&response_type=code&redirect_uri=${process.env.PROCORE_REDIRECT_URI}&scope=users.read+users.write+projects.read+projects.write+read.users+write.users+read.projects+write.projects&state=${state}`
+    console.log(
+        "Redirecting to ProCore login with procoreAuthUrl:",
+        procoreAuthUrl
+    )
+    res.redirect(procoreAuthUrl)
+})
+
+// Step 2: Handle OAuth Callback and Retrieve Authorization Code
+app.get("/procore/callback", async (req, res) => {
+    console.log("ProCore callback received with query >>>>>>>:", req.query)
+    const authCode = req.query.code // Extract the authorization code from the query parameter
+    if (!authCode) {
+        return res.status(400).send("Authorization code not found")
+    }
+
+    try {
+        // Step 3: Exchange the authorization code for an access token
+        const tokenResponse = await axios.post(
+            "https://api.procore.com/oauth/token",
+            null,
+            {
+                params: {
+                    grant_type: "authorization_code",
+                    client_id: process.env.PROCORE_CLIENT_ID,
+                    client_secret: process.env.PROCORE_CLIENT_SECRET,
+                    code: authCode,
+                    redirect_uri: process.env.PROCORE_REDIRECT_URI
+                },
+                headers: { "Content-Type": "application/x-www-form-urlencoded" }
+            }
+        )
+
+        const { access_token, refresh_token } = tokenResponse.data
+
+        console.log("Access Token:", access_token)
+        console.log("Refresh Token:", refresh_token)
+
+        // Store tokens securely for future API requests (could store in DB or session)
+        // Respond with success or redirect to the frontend
+        res.send("ProCore login successful!")
+    } catch (error) {
+        console.error("Error fetching ProCore tokens:", error)
+        res.status(500).send("Error fetching tokens: " + error.message)
+    }
+})
+
+// Step 4: Use the Access Token to Interact with ProCore APIs
+app.get("/procore/users", async (req, res) => {
+    const accessToken = 111111 /* Retrieve stored access token from session or database */
+
+    try {
+        const response = await axios.get(
+            process.env.PROCORE_API_URL + "/vapid/users",
+            {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            }
+        )
+
+        res.json(response.data) // Send user data to client
+    } catch (error) {
+        console.error("Error fetching ProCore users:", error)
+        res.status(500).send("Error fetching users: " + error.message)
+    }
+})
 
 server.listen(PORT, async () => {
     console.log(`Server running at http://localhost:${PORT}`)
