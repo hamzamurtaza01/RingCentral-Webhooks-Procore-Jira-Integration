@@ -326,6 +326,139 @@ app.get("/procore/users", async (req, res) => {
     }
 })
 
+// OLD CODE
+
+// Step 1: Authenticate and get access token
+app.post("/procore/auth", async (req, res) => {
+    const { authCode } = req.body
+
+    try {
+        const accessToken = await getAccessToken(authCode)
+        res.status(200).json({ accessToken })
+    } catch (error) {
+        res.status(500).json({ error: error.message })
+    }
+})
+
+async function getAccessToken(authCode) {
+    try {
+        const response = await axios.post(
+            process.env.PROCORE_API_URL + "/oauth/token",
+            null,
+            {
+                params: {
+                    grant_type: "authorization_code",
+                    code: authCode,
+                    client_id: process.env.PROCORE_CLIENT_ID,
+                    client_secret: process.env.PROCORE_CLIENT_SECRET,
+                    redirect_uri: process.env.PROCORE_REDIRECT_URI
+                }
+            }
+        )
+        const { access_token, refresh_token } = response.data
+
+        console.log("Access Token:", access_token)
+        console.log("Refresh Token:", refresh_token)
+
+        return response.data.access_token
+    } catch (error) {
+        console.error("Error getting access token:", error.response.data)
+        throw new Error("Failed to obtain access token.")
+    }
+}
+
+// Step 2: Fetch users
+async function fetchUsers(accessToken) {
+    try {
+        const response = await axios.get(
+            process.env.PROCORE_API_URL + "/vapid/users",
+            {
+                headers: {
+                    Authorization: `Bearer ${accessToken}`
+                }
+            }
+        )
+        return response.data.data // Modify according to actual API response structure
+    } catch (error) {
+        console.error("Error fetching users:", error.response.data)
+        throw new Error("Failed to fetch users.")
+    }
+}
+
+// Step 3: Add a note for a user
+async function addNoteForUser(accessToken, userId, noteContent) {
+    try {
+        const response = await axios.post(
+            `${process.env.PROCORE_API_URL}/vapid/users/${userId}/notes`,
+            {
+                content: noteContent,
+                type: "note"
+            },
+            {
+                headers: {
+                    Authorization: `Bearer ${accessToken}`
+                }
+            }
+        )
+        return response.data // Modify according to actual API response structure
+    } catch (error) {
+        console.error("Error adding note:", error.response.data)
+        throw new Error("Failed to add note.")
+    }
+}
+
+// Step 4: Edit a note for a user
+async function editNoteForUser(accessToken, userId, noteId, updatedContent) {
+    try {
+        const response = await axios.put(
+            `${process.env.PROCORE_API_URL}/vapid/users/${userId}/notes/${noteId}`,
+            {
+                content: updatedContent
+            },
+            {
+                headers: {
+                    Authorization: `Bearer ${accessToken}`
+                }
+            }
+        )
+        return response.data // Modify according to actual API response structure
+    } catch (error) {
+        console.error("Error editing note:", error.response.data)
+        throw new Error("Failed to edit note.")
+    }
+}
+
+// Example route to handle the authentication and note management
+app.post("/procore", async (req, res) => {
+    const { authCode, userId, noteContent, noteId } = req.body
+
+    try {
+        const accessToken = await getAccessToken(authCode)
+        console.log("Access Token:", accessToken)
+        const users = await fetchUsers(accessToken)
+        console.log("Fetched Users:", users)
+
+        const addedNote = await addNoteForUser(accessToken, userId, noteContent)
+        console.log("Added Note:", addedNote)
+
+        if (noteId) {
+            const updatedNote = await editNoteForUser(
+                accessToken,
+                userId,
+                noteId,
+                "Updated Note Content"
+            )
+            console.log("Updated Note:", updatedNote)
+        }
+
+        res.status(200).json({ users, addedNote })
+    } catch (error) {
+        res.status(500).json({ error: error.message })
+    }
+})
+
+/* ================================================ */
+
 server.listen(PORT, async () => {
     console.log(`Server running at http://localhost:${PORT}`)
 })
