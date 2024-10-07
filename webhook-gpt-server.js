@@ -105,8 +105,8 @@ async function read_subscriptions() {
             subscribe_for_notification()
         } else {
             for (var record of jsonObj.records) {
-                // console.log({ record })
-                delete_subscription(record.id)
+                console.log({ record })
+                // delete_subscription(record.id)
             }
         }
     } catch (e) {
