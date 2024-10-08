@@ -85,8 +85,8 @@ async function subscribe_for_notification() {
         let endpoint = "/restapi/v1.0/subscription"
         var resp = await platform.post(endpoint, bodyParams)
         var jsonObj = await resp.json()
-        console.log(`Subscription Id: ${jsonObj.id}`)
-        console.log("Ready to receive incoming SMS via WebHook.")
+        // console.log(`Subscription Id: ${jsonObj.id}`)
+        // console.log("Ready to receive incoming SMS via WebHook.")
     } catch (e) {
         console.log({ e, msg: e.message })
     }
@@ -100,8 +100,8 @@ async function read_subscriptions() {
         var jsonObj = await resp.json()
         console.log("RESPONSE >>>", jsonObj)
         if (jsonObj.records.length == 0) {
-            console.log("No subscription yet.")
-            console.log("Now subscribing for SMS events.")
+            // console.log("No subscription yet.")
+            // console.log("Now subscribing for SMS events.")
             subscribe_for_notification()
         } else {
             for (var record of jsonObj.records) {
