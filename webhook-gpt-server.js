@@ -347,7 +347,7 @@ async function getAccessToken(authCode) {
             null,
             {
                 params: {
-                    grant_type: "authorization_code",
+                    grant_type: "authorization_code", // check if this works
                     code: authCode,
                     client_id: process.env.PROCORE_CLIENT_ID,
                     client_secret: process.env.PROCORE_CLIENT_SECRET,
@@ -428,6 +428,7 @@ async function editNoteForUser(accessToken, userId, noteId, updatedContent) {
     }
 }
 
+// Probably not needed
 // Example route to handle the authentication and note management
 app.post("/procore", async (req, res) => {
     const { authCode, userId, noteContent, noteId } = req.body
